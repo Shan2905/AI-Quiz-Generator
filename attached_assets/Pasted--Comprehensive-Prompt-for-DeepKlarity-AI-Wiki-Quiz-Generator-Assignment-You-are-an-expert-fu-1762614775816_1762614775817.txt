@@ -1,0 +1,65 @@
+### Comprehensive Prompt for DeepKlarity AI Wiki Quiz Generator Assignment
+
+**You are an expert full-stack developer specializing in Python AI applications and React web development. Your task is to build, deploy, and document a complete, production-ready full-stack application based on the DeepKlarity Assignment Reference Document for the "AI Wiki Quiz Generator". This app transforms unstructured Wikipedia text into structured, engaging quizzes using AI (Gemini LLM via LangChain), stores data in a relational database, and provides a polished React frontend with history viewing. The submission must include: a GitHub repo, live deployed site (Vercel for frontend, Render for backend), and a 60-second Loom demo video.**
+
+**Core Objective:**  
+Create a web app where users input a Wikipedia URL, the backend scrapes the article, uses Gemini to generate 5-10 MCQ quizzes with explanations, summaries, key entities, and related topics (in strict JSON via Pydantic), saves everything to PostgreSQL/MySQL, and displays the quiz interactively. Include a history tab for viewing past quizzes via modal. Ensure no Node.js backend—strictly Python/FastAPI.
+
+**Technical Requirements (Exact Stack):**  
+- **Backend:** Python 3.10+, FastAPI (API framework), SQLAlchemy (ORM for DB), BeautifulSoup4 + requests (scraping), LangChain + langchain-google-genai (Gemini integration), Pydantic (validation/schemas), python-dotenv (.env management).  
+- **LLM:** Gemini Free Tier API (model: gemini-1.5-flash or pro; use JsonOutputParser for enforced JSON output).  
+- **Database:** PostgreSQL (preferred) or MySQL; store: id (PK), url (unique string), title (string), date_generated (datetime), scraped_content (text, bonus), full_quiz_data (text as JSON string via json.dumps()). Use declarative base models.  
+- **Frontend:** React (Vite setup), Tailwind CSS (utility-first styling, responsive design), Axios/fetch for API calls. No backend Node.js.  
+- **Other:** CORS middleware for frontend comms; error handling (e.g., 404 for missing quizzes, 400 for invalid URLs); loading states/spinners; URL validation (must be en.wikipedia.org).  
+- **Deployment:** Live on Vercel (frontend) + Render (backend with free Postgres DB); env vars for GEMINI_API_KEY and DATABASE_URL.  
+- **Submission Extras:** GitHub repo with .gitignore, README.md (setup, endpoints, live links, video); 60-sec Loom video demoing generation + history.
+
+**Project Structure (Exact Folders/Files):**  
+```
+ai-quiz-generator/
+├── backend/
+│   ├── venv/  # Ignored
+│   ├── .env.example  # GEMINI_API_KEY, DATABASE_URL
+│   ├── requirements.txt  # List: fastapi, uvicorn[standard], sqlalchemy, beautifulsoup4, requests, pydantic, langchain-core, langchain-community, python-dotenv, langchain-google-genai, psycopg2-binary (for Postgres)
+│   ├── database.py  # SQLAlchemy engine, SessionLocal, Base, Quiz model (fields as above), get_db() dependency
+│   ├── models.py  # Pydantic: Question (question:str, options:List[str], correct_answer:int index, explanation:str); QuizOutput (title:str, summary:str, questions:List[Question], key_entities:List[str], related_topics:List[str])
+│   ├── scraper.py  # scrape_wikipedia(url) -> (title:str, clean_text:str); use requests+headers, BeautifulSoup to parse #firstHeading and #mw-content-text; remove sup/table/figure; join <p> texts, limit to 15k chars
+│   ├── llm_quiz_generator.py  # Init ChatGoogleGenerativeAI (model=gemini-1.5-flash, temp=0.7); PromptTemplate with placeholders {title}, {content}, format_instructions; chain = prompt | llm | JsonOutputParser(QuizOutput); generate_quiz(title, content) -> QuizOutput
+│   └── main.py  # FastAPI app; CORS (origins: localhost:5173 + Vercel); /generate_quiz POST (body:{url:str} -> scrape -> generate -> save Quiz (json.dumps(quiz.dict())) -> return quiz); /history GET (list id/url/title/date); /quiz/{id} GET (load, json.loads(full_quiz_data)); error handling
+├── frontend/
+│   ├── src/
+│   │   ├── components/  # QuizDisplay.jsx (interactive: radios, show answers toggle, score calc); HistoryTable.jsx (table: id/title/url/date, Details btn fetches /quiz/{id}); Modal.jsx (overlay with close)
+│   │   ├── services/  # api.js (generateQuiz(url), getHistory(), getQuiz(id); use fetch, base=http://127.0.0.1:8000 or VITE_API_URL)
+│   │   ├── tabs/  # GenerateQuizTab.jsx (form: url input, submit -> loading -> QuizDisplay); HistoryTab.jsx (fetch history, table, refresh btn)
+│   │   ├── App.jsx  # Tabs: Generate/History switch; container with h1
+│   │   ├── main.jsx  # ReactDOM render
+│   │   └── index.css  # Tailwind @base/@components/@utilities; body font
+│   ├── package.json  # React 18, axios; dev: tailwindcss, postcss, autoprefixer, vite, eslint
+│   ├── vite.config.js  # React plugin; proxy /api -> localhost:8000; env VITE_API_URL
+│   ├── tailwind.config.js  # Content: src/**/*.{jsx,js}; extend empty
+│   └── postcss.config.js  # Tailwind + autoprefixer
+├── README.md  # Setup (backend/frontend commands), API endpoints, tech stack, live links, Loom video
+└── .gitignore  # venv/, node_modules/, .env, *.db
+```
+
+**Step-by-Step Implementation Guide:**  
+1. **Backend Setup:** Virtualenv, pip install reqs; .env with GEMINI_API_KEY (from aistudio.google.com); database.py with DATABASE_URL=postgresql://user:pass@localhost:5432/quizdb (create DB via createdb); Base.metadata.create_all().  
+2. **Scraper:** Handle 404s; clean text (strip refs, tables); return title + truncated content.  
+3. **LLM Chain:** Prompt: "Expert educator: From {title} + {content}, gen 5-7 MCQs (4 opts, correct index 0-3, expl); summary (2-3 sents); key_entities (5-10); related_topics (3-5). Output ONLY JSON per schema." Use partial_variables for format_instructions.  
+4. **API Endpoints:** POST /generate_quiz: Validate Wikipedia URL; scrape; gen; serialize/save; return dict(). GET /history: Query all, order desc date, return simplified list. GET /quiz/{id}: Load, deserialize, return.  
+5. **Frontend Setup:** npx create-vite . --react; npm i -D tailwind/postcss/autoprefixer; npx tailwind init -p; npm i axios. Components: QuizDisplay (cards for summary/entities/topics; questions with radios, toggle explanations, score on full answers). Tabs: Generate (form + loading/error + display); History (table + modal w/ QuizDisplay). State: useState for activeTab, quiz, history, modal.  
+6. **UI Polish:** Tailwind: bg-gray-100 min-h-screen; cards/shadows; responsive table (overflow-x); spinner (loading: "Generating..."); errors (red bg).  
+7. **Testing:** Local: uvicorn main:app --reload; npm run dev. Test: Wiki URL -> quiz JSON -> display; history save/fetch; modal. Edge: Invalid URL (400), no quiz (404).  
+8. **Deployment:** Render (backend: build pip reqs, start uvicorn --host 0.0.0.0 --port $PORT; auto Postgres, env GEMINI/DATABASE_URL); Vercel (frontend: import repo, root /frontend, env VITE_API_URL=render-url). Update api.js for prod base.  
+9. **GitHub:** Init/add/commit/push; README with setup, endpoints (e.g., POST /generate_quiz {url}), sample JSON output, live/demo links.  
+10. **Demo Video:** Loom: 60s; narrate stack; demo gen (Python wiki) + history details; end w/ GitHub/live.
+
+**Output Format:**  
+- Generate **all code files** as verbatim blocks (e.g., ```python:disable-run
+- Include **README.md** full text.  
+- Provide **deployment commands** (e.g., Render/Vercel steps).  
+- End with **submission email template** (GitHub + live + Loom).  
+- Ensure: 5-7 questions/quiz; MCQ with 4 opts; explanations; no hardcodes; secure (no API keys in code).  
+
+**Constraints:** No Node backend; free tiers only; responsive/mobile-friendly; 13-18hr build time estimate w/ AI help. Make it shortlist-worthy: Clean, modular, error-proof. Begin by confirming setup, then generate files sequentially.
+```
